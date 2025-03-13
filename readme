@@ -1,3 +1,34 @@
+# RL for Mesh Generation
+
+This repository contains a Python implementation of the RL-based mesh generation algorithm presented in:
+
+1. Pan, J., Huang, J., Wang, Y., Cheng, G., & Zeng, Y. (2021). A self-learning finite element extraction system based on reinforcement learning. *AI EDAM, 35(2)*, 180-208.
+2. Pan, J., Huang, J., Cheng, G., & Zeng, Y. (2023). Reinforcement learning for automatic quadrilateral mesh generation: A soft actor–critic approach. *Neural Networks, 157*, 288-304.
+
+If you use this implementation in your work, please add a reference/citation to the paper:
+
+```bibtex
+@article{pan2021self,
+  title={A self-learning finite element extraction system based on reinforcement learning},
+  author={Pan, Jie and Huang, Jingwei and Wang, Yunli and Cheng, Gengdong and Zeng, Yong},
+  journal={AI EDAM},
+  volume={35},
+  number={2},
+  pages={180--208},
+  year={2021},
+  publisher={Cambridge University Press}
+}
+
+@article{pan2023reinforcement,
+  title={Reinforcement learning for automatic quadrilateral mesh generation: A soft actor--critic approach},
+  author={Pan, Jie and Huang, Jingwei and Cheng, Gengdong and Zeng, Yong},
+  journal={Neural Networks},
+  volume={157},
+  pages={288--304},
+  year={2023},
+  publisher={Elsevier}
+}
+
 ### Mesh generation program installation & usage
 
 Build your own virtual environment (if you don’t want to use any virtual environment you can skip this section)
