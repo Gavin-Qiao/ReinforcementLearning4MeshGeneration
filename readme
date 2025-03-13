@@ -7,7 +7,7 @@ This repository contains a Python implementation of the RL-based mesh generation
 
 If you use this implementation in your work, please add a reference/citation to the paper:
 
-```bibtex
+
 @article{pan2021self,
   title={A self-learning finite element extraction system based on reinforcement learning},
   author={Pan, Jie and Huang, Jingwei and Wang, Yunli and Cheng, Gengdong and Zeng, Yong},
