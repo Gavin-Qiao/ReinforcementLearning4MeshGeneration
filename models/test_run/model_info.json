@@ -1,0 +1,10 @@
+{
+  "algorithm": "SAC",
+  "timesteps": 1000,
+  "version": "test_run",
+  "env_config": {
+    "boundary_points": 102,
+    "action_space": "continuous",
+    "state_space": "mesh_state"
+  }
+}

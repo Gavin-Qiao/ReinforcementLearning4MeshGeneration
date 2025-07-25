@@ -1,0 +1,23 @@
+[project]
+name = "reinforcementlearning4meshgeneration"
+version = "0.1.0"
+description = "RL-based mesh generation"
+requires-python = "==3.9.*"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "stable-baselines3",
+    "gymnasium",
+    "shapely",
+    "opencv-python",
+    "pygame",
+    "meshio",
+    "scipy",
+    "seaborn>=0.13.2",
+    "tqdm>=4.66.5",
+    "shimmy>=2.0.0",
+]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu124"

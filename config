@@ -16,7 +16,7 @@ experiments: %(base_path)s/baselines/logs/experiments
 augmentation: %(base_path)s/ANN/data_augmentation
 
 [domains]
-domain_path: D:/python_projects/meshgeneration/ui/domains
+domain_path: ui/domains
 dolphine1: %(domain_path)s/dolphine1.json
 dolphine2: %(domain_path)s/dolphine2.json
 dolphine3: %(domain_path)s/dolphine3.json

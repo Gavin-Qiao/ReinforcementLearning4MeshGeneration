@@ -1,251 +1,171 @@
-from typing import Dict
-import gym
-import numpy as np
-import torch as th
-from stable_baselines3 import A2C, DDPG, SAC, PPO, TD3
-from rl.boundary_env import BoudaryEnv, read_polygon, boundary
-from rl.baselines.CustomizeA2C import CustomActorCriticPolicy
-from rl.baselines.CustomizeCallback import CustomCallback
-from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common import results_plotter
+import os
 from pathlib import Path
-import configparser
 import torch
-
-base_path = Path(__file__).parent.parent.parent
-config = configparser.ConfigParser()
-config.read(f'{base_path}/config')
-
-device = torch.device("cuda:0")
-
-# o_env = BoudaryEnv(boundary())
-# eval_env = BoudaryEnv(boundary())
-o_env = BoudaryEnv(read_polygon(config['domains']['dolphine3'])) #dolphine3 basic2
-eval_env = BoudaryEnv(read_polygon(config['domains']['dolphine3']))
-
-
-version = '77' ## 46 for ppo
-total_timesteps = 4000000
-seed = 999 # change from 999 to 111
-rl_method = 'sac'
-learning_rate = 3e-4
-# gamma = 0.5
-
-parameter_tuning = {
-    'gamma': 0.5
-}
+from stable_baselines3 import SAC, PPO, A2C, TD3, DDPG
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+from rl.boundary_env import BoudaryEnv, read_polygon
+from rl.baselines.CustomizeCallback import CustomCallback
+import warnings
+import multiprocessing as mp
+from tqdm import tqdm
+import time
 
 def mkdir_p(mypath):
-    '''Creates a directory. equivalent to using mkdir -p on the command line'''
-
+    """Creates a directory. equivalent to using mkdir -p on the command line"""
     from errno import EEXIST
-    from os import makedirs,path
-
+    from os import makedirs, path
     try:
         makedirs(mypath)
-    except OSError as exc: # Python >2.5
+    except OSError as exc:
         if exc.errno == EEXIST and path.isdir(mypath):
             pass
-        else: raise
-
-
-def prepare_eval_envs():
-    domains = [
-                # [500000, BoudaryEnv(boundary(-1)), BoudaryEnv(boundary(-1))],
-               # [1000000, BoudaryEnv(boundary(0)), BoudaryEnv(boundary(0))],
-               # [1000000, BoudaryEnv(boundary(2)), BoudaryEnv(boundary(2))],
-               #  [1500000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary15.json')),
-               #   BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary15.json'))],
-               #  [100000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/star1.json')),
-               #   BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/star1.json'))],
-               #  [500000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/reward_calibration.json')),
-               #   BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/reward_calibration.json'))],
-               #  [500000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/easy1_1.json')),
-               #   BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/easy1_1.json'))],
-               [1500000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/random1_1.json')),
-                BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/random1_1.json'))],
-               # [2000000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/random2_2.json')),
-               #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/random2_2.json'))],
-               # [1000000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/basic1.json')),
-               #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/basic1.json'))],
-               # [1000000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary4.json')),
-               #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary4.json'))],
-               # [1000000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary8.json')),
-               #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary8.json'))],
-
-               # [100000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary16.json')),
-               #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary16.json'))],
-                # [100000, BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary10.json')),
-                #  BoudaryEnv(read_polygon('D:/python_projects/meshgeneration/ui/domains/boundary10.json'))],
-               ]
-    return domains
-
-
-def curriculum_learning(method_name):
-    envs = prepare_eval_envs()
-    for i, (learning_step, env, e_env) in enumerate(envs):
-        if i <= 0:
-            model_path = None
-            # continue
         else:
-            model_path = f"{config['default'][f'{method_name}_log']}/{version}/curriculum/{i - 1}/mesh"
-        mesh_learning(method_name, env, e_env, learning_step,
-                      model_path=model_path,
-                      log_path=f"{config['default'][f'{method_name}_log']}/{version}/curriculum/{i}",
-                      tensorboard_log=f"{config['default'][f'{method_name}_tensorboard_log']}/{version}/curriculum/{i}")
+            raise
 
+class TqdmCallback(BaseCallback):
+    """
+    Custom callback for displaying training progress with tqdm
+    """
+    def __init__(self, total_timesteps, verbose=0):
+        super(TqdmCallback, self).__init__(verbose)
+        self.total_timesteps = total_timesteps
+        self.pbar = None
+        self.start_time = None
+    
+    def _on_training_start(self) -> None:
+        self.start_time = time.time()
+        self.pbar = tqdm(
+            total=self.total_timesteps,
+            desc="Training Progress",
+            unit="steps",
+            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
+        )
+    
+    def _on_step(self) -> bool:
+        if self.pbar is not None:
+            self.pbar.update(1)
+            
+            # Update description with current stats every 1000 steps
+            if self.num_timesteps % 1000 == 0:
+                elapsed_time = time.time() - self.start_time
+                steps_per_sec = self.num_timesteps / elapsed_time if elapsed_time > 0 else 0
+                
+                # Get recent reward if available
+                recent_reward = "N/A"
+                if hasattr(self.model, 'ep_info_buffer') and len(self.model.ep_info_buffer) > 0:
+                    recent_reward = f"{self.model.ep_info_buffer[-1]['r']:.2f}"
+                
+                self.pbar.set_description(
+                    f"Training | Steps/sec: {steps_per_sec:.1f} | Recent Reward: {recent_reward}"
+                )
+        return True
+    
+    def _on_training_end(self) -> None:
+        if self.pbar is not None:
+            self.pbar.close()
 
-def mesh_learning(method_name, o_env, eval_env, total_timesteps, model_path=None,
-                  log_path=None,
-                  tensorboard_log=None):
+def train_model(method_name, train_env, eval_env, total_timesteps, log_path, tensorboard_log, seed):
+    """
+    Trains a new reinforcement learning model from scratch.
+
+    :param method_name: The RL algorithm to use (e.g., 'sac', 'ppo').
+    :param train_env: The environment for training.
+    :param eval_env: The environment for evaluation during training.
+    :param total_timesteps: The total number of steps to train for.
+    :param log_path: The directory to save model checkpoints and logs.
+    :param tensorboard_log: The directory to save TensorBoard logs.
+    :param seed: The random seed for reproducibility.
+    """
+    # 1. Create the log directories
     mkdir_p(log_path)
     mkdir_p(tensorboard_log)
 
+    # 2. Set up the evaluation callback
+    # This will periodically evaluate the model and save the best one.
     eval_callback = CustomCallback(eval_env, best_model_save_path=log_path,
-                                   log_path=log_path, eval_freq=1000,
-                                   n_eval_episodes=1,
-                                   version=version,
-                                   deterministic=False, render=False)
+                                   log_path=log_path, eval_freq=5000,
+                                   n_eval_episodes=5,
+                                   deterministic=True, render=False)
 
-    # env = Monitor(o_env, f"{config['default']['a2c_log']}/{version}/")
-    env = o_env
-    if method_name == 'a2c':
-        # policy_kwargs = dict(activation_fn=th.nn.ReLU,
-        #                      net_arch=[64, dict(pi=[32, 32], vf=[32, 32])])
-        if model_path is not None:
-            pass
-        else:
-            model = A2C(
-                'MlpPolicy',
-                env,
-                # policy_kwargs=policy_kwargs,
-                seed=seed,
-                # learning_rate=learning_rate,
-                tensorboard_log=tensorboard_log
-            )
-        model.learn(total_timesteps=total_timesteps, callback=eval_callback)
-        # Save the agent
-        model.save(f"{log_path}/mesh")
+    # 3. Configure and instantiate the RL model  
+    # Note: RTX 5090 has compatibility issues with current PyTorch, using CPU
+    device = torch.device("cuda")
+    
+    model_params = {
+        'sac': lambda: SAC(
+            'MlpPolicy', train_env, seed=seed, 
+            policy_kwargs=dict(activation_fn=torch.nn.ReLU, net_arch=[128, 128, 128]),
+            learning_rate=3e-4, learning_starts=10000, batch_size=100,
+            tensorboard_log=tensorboard_log, device=device
+        ),
+        'ppo': lambda: PPO(
+            'MlpPolicy', train_env, seed=seed,
+            policy_kwargs=dict(activation_fn=torch.nn.ReLU, net_arch=[dict(pi=[128, 128], vf=[128, 128])]),
+            tensorboard_log=tensorboard_log, device=device
+        ),
+        # Add other model configurations here if needed
+    }
 
-        del model
-        # the policy_kwargs are automatically loaded
-        model = A2C.load(f"{log_path}/mesh", env=o_env)
+    if method_name not in model_params:
+        raise ValueError(f"Unknown RL method: {method_name}")
+    
+    model = model_params[method_name]()
 
-    elif method_name == 'ddpg':
-        if model_path is not None:
-            pass
-        else:
-            # policy_kwargs = dict(activation_fn=th.nn.ReLU,
-            #                      net_arch=[256, 256])
-            model = DDPG(
-                'MlpPolicy',
-                env,
-                seed=seed,
-                # learning_rate=learning_rate,
-                # policy_kwargs=policy_kwargs,
-                tensorboard_log=tensorboard_log
-            )
-        model.learn(total_timesteps=total_timesteps, callback=eval_callback)
-        # Save the agent
-        model.save(f"{log_path}/mesh")
+    # 4. Set up progress tracking callback
+    progress_callback = TqdmCallback(total_timesteps)
+    
+    # 5. Start the training process
+    print(f"Starting training with {method_name.upper()} for {total_timesteps} timesteps...")
+    print(f"Device: {device}")
+    print("-" * 60)
+    
+    model.learn(
+        total_timesteps=total_timesteps, 
+        callback=[eval_callback, progress_callback]
+    )
 
-        del model
-        # the policy_kwargs are automatically loaded
-        model = DDPG.load(f"{log_path}/mesh", env=o_env)
-
-    elif method_name == 'ppo':
-        if model_path is not None:
-            model = PPO.load(model_path, env=o_env)
-        else:
-            policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                 net_arch=[dict(pi=[128, 128], vf=[128, 128])])
-            model = PPO(
-                'MlpPolicy',
-                env,
-                seed=seed,
-                # gamma=gamma,
-                # learning_rate=learning_rate,
-                policy_kwargs=policy_kwargs,
-                tensorboard_log=tensorboard_log,
-                device=device
-            )
-        model.learn(total_timesteps=total_timesteps, callback=eval_callback)
-        # Save the agent
-        model.save(f"{log_path}/mesh")
-
-        # del model  # remove to demonstrate saving and loading
-
-    elif method_name == 'sac':
-        if model_path is not None:
-            model = SAC.load(model_path, env=o_env)
-        else:
-            policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                 net_arch=[128, 128, 128])#32, 128, 128, 128, 64, 32
-
-            model = SAC(
-                'MlpPolicy', # MlpPolicy
-                env,
-                seed=seed,
-                policy_kwargs=policy_kwargs,
-                learning_rate=learning_rate,
-                learning_starts=10000,
-                batch_size=100,
-                tensorboard_log=tensorboard_log,
-                device=device
-            )
-        model.learn(total_timesteps=total_timesteps, callback=eval_callback)
-        # Save the agent
-        model.save(f"{log_path}/mesh")
-
-        #
-        # model = SAC.load(f"{log_path}/mesh", env=o_env)
-
-    elif method_name == 'td3':
-        if model_path is not None:
-            model = TD3.load(model_path, env=o_env)
-        else:
-            policy_kwargs = dict(activation_fn=th.nn.ReLU,
-                                 net_arch=[256, 256])
-            model = TD3(
-                'MlpPolicy',
-                env,
-                seed=seed,
-                learning_starts=10000,
-                learning_rate=learning_rate,
-                policy_kwargs=policy_kwargs,
-                tensorboard_log=tensorboard_log
-            )
-        model.learn(total_timesteps=total_timesteps, callback=eval_callback)
-        # Save the agent
-        model.save(f"{log_path}/mesh")
-
-        # del model  # remove to demonstrate saving and loading
-        #
-        # model = TD3.load(f"{log_path}/mesh", env=o_env)
-
-    # evaluation(model)
-    return model
+    # 6. Save the final model
+    final_model_path = f"{log_path}/final_model.zip"
+    model.save(final_model_path)
+    print(f"--- Training Complete ---")
+    print(f"Final model saved to: {final_model_path}")
+    print(f"Best model saved in: {log_path}")
+    print(f"To view logs, run: tensorboard --logdir {tensorboard_log}")
+    print("-------------------------")
 
 
-def evaluation(model, is_render=True):
-    obs = o_env.reset()
-    for _ in range(1000):
-        action, _states = model.predict(obs)
-        obs, rewards, dones, info = o_env.step(action)
-        if is_render:
-            o_env.render()
+if __name__ == "__main__":
+    # --- GPU-Optimized Configuration ---
+    # You can change these parameters to customize the training run.
+    RL_METHOD = 'sac'  # Algorithm: 'sac' or 'ppo' (SAC generally better for continuous control)
+    TOTAL_TIMESTEPS = 2000000  # Increased for better GPU utilization and results
+    SEED = 42  # Random seed for consistent results.
+    VERSION = "basic1_gpu_training"  # A name for this training run, used for the log folder.
 
-# Create policy with a small network
+    # --- Path Setup ---
+    # This section automatically sets up the necessary paths.
+    base_path = Path(__file__).parent.parent.parent
+    domain_path = base_path / "ui" / "domains" / "basic1.json"
+    log_path = base_path / "logs" / f"{RL_METHOD}_{VERSION}"
+    tensorboard_log_path = base_path / "tensorboard_logs" / f"{RL_METHOD}_{VERSION}"
 
-# Use traditional actor-critic policy gradient updates to
-# find good initial parameters
-# checkpoint_callback = CheckpointCallback(save_freq=1000, save_path='./logs/',
-#                                          name_prefix='rl_model',
-#                                          )
-# model.learn(total_timesteps=100000, callback=checkpoint_callback)
+    # --- Execution ---
+    if not domain_path.exists():
+        print(f"Error: Domain file not found at {domain_path}")
+    else:
+        # 1. Set up the environments
+        print("Setting up training and evaluation environments...")
+        train_env = BoudaryEnv(read_polygon(domain_path))
+        eval_env = BoudaryEnv(read_polygon(domain_path))
 
-# mesh_learning(rl_method, o_env, eval_env, total_timesteps,
-#               f"{config['default'][f'{rl_method}_log']}/{version}/mesh",
-#               tensorboard_log=f"{config['default'][f'{method_name}_tensorboard_log']}/{version}/")
-curriculum_learning(rl_method)
+        # 2. Start the training process
+        train_model(
+            method_name=RL_METHOD,
+            train_env=train_env,
+            eval_env=eval_env,
+            total_timesteps=TOTAL_TIMESTEPS,
+            log_path=str(log_path),
+            tensorboard_log=str(tensorboard_log_path),
+            seed=SEED
+        )

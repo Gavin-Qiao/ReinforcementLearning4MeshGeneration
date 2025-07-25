@@ -574,6 +574,13 @@ class BoudaryEnv(MeshGeneration, gym.Env):
         if self.viewer is not None:
             self.viewer.close()
         self.viewer = None
+    
+    def seed(self, seed=None):
+        """Seed the environment's random number generator."""
+        if seed is not None:
+            np.random.seed(seed)
+            random.seed(seed)
+        return [356]
 
     def render(self, mode='human'):
         print(f'Generated elements: {len(self.generated_meshes)}')

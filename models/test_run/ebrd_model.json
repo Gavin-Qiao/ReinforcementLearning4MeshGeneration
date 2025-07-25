@@ -1,0 +1,6 @@
+{
+  "model_type": "EBRD",
+  "training_samples": 50,
+  "epochs": 100,
+  "version": "test_run"
+}

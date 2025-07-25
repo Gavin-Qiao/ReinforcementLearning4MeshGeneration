@@ -1,0 +1,16 @@
+{
+  "version": "test_run",
+  "pipeline_completed": true,
+  "directories": {
+    "models": "models/test_run/",
+    "plots": "plots/test_run/",
+    "samples": "samples/test_run/",
+    "elements": "elements/test_run/"
+  },
+  "files_generated": [
+    "models/test_run/ebrd_model.json",
+    "models/test_run/model_info.json",
+    "samples/test_run/training_samples.json",
+    "elements/test_run/final_mesh.json"
+  ]
+}

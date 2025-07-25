@@ -2,7 +2,7 @@ from stable_baselines3.common.callbacks import BaseCallback, EventCallback, Stop
 from typing import Any, Callable, Dict, List, Optional, Union
 from stable_baselines3.common.vec_env import VecEnv, sync_envs_normalization
 from stable_baselines3.common.results_plotter import load_results, ts2xy
-from rl.baselines.dummy_vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv
 import gym
 import numpy as np
 import os

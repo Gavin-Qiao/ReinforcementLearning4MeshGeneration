@@ -1,7 +1,11 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
-from general import original_ann as predict_model
+try:
+    from general import original_ann as predict_model
+except ImportError:
+    print("Warning: original_ann not found, using dummy predict_model")
+    predict_model = None
 from general.components import *
 import json
 from general.data import matrix_ops, transformation
