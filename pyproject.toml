@@ -16,6 +16,8 @@ dependencies = [
     "seaborn>=0.13.2",
     "tqdm>=4.66.5",
     "shimmy>=2.0.0",
+    "gym>=0.26.2",
+    "tensorboard>=2.20.0",
 ]
 
 [[tool.uv.index]]
